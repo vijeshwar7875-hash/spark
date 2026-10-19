@@ -5,6 +5,13 @@ export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-$ARCH
 export HADOOP_HOME=/usr/local/hadoop
 export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
 add_env() { grep -qxF "$1" ~/.bashrc || echo "$1" >> ~/.bashrc; }
+# fetch <file> <url1> [url2...]: reuse a valid file in ~/Downloads, else resume-download (tries each URL)
+fetch() {
+  f=$1; shift
+  if [ -f "$f" ] && tar -tzf "$f" >/dev/null 2>&1; then echo "Using existing $f"; return 0; fi
+  for u in "$@"; do wget -c "$u" && return 0; done
+  echo "Download failed. Put $f in ~/Downloads manually and rerun."; exit 1
+}
 
 echo "=== 1. Install Java, SSH, tools ==="
 sudo apt update
@@ -27,7 +34,7 @@ add_env 'export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin'
 echo "=== 4. Download and install Hadoop 3.3.6 ==="
 if [ ! -d "$HADOOP_HOME" ]; then
   mkdir -p ~/Downloads && cd ~/Downloads
-  wget -nc https://archive.apache.org/dist/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz
+  fetch hadoop-3.3.6.tar.gz https://dlcdn.apache.org/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz https://archive.apache.org/dist/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz
   tar -xzf hadoop-3.3.6.tar.gz
   sudo mv hadoop-3.3.6 "$HADOOP_HOME"
   sudo chown -R "$USER":"$USER" "$HADOOP_HOME"
@@ -116,7 +123,7 @@ export SPARK_HOME=/usr/local/spark
 export PATH=$PATH:$SPARK_HOME/bin
 if [ ! -d "$SPARK_HOME" ]; then
   mkdir -p ~/Downloads && cd ~/Downloads
-  wget -nc https://archive.apache.org/dist/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz
+  fetch spark-3.5.3-bin-hadoop3.tgz https://dlcdn.apache.org/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz https://archive.apache.org/dist/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz
   tar -xzf spark-3.5.3-bin-hadoop3.tgz
   sudo mv spark-3.5.3-bin-hadoop3 "$SPARK_HOME"
   sudo chown -R "$USER":"$USER" "$SPARK_HOME"

@@ -10,6 +10,14 @@ RULES
 - Needs internet and at least 4 GB RAM.
 - If Hadoop is already installed and running (jps shows 5 daemons), skip to STEP 6.
 
+DOWNLOAD TIPS (the download is the slowest part)
+- "wget -c" RESUMES a broken download. If the connection drops, run the same wget again.
+- The first link is a fast CDN; if it gives 404, the command automatically tries the archive link.
+- Fastest in a slow lab: download the file at home / hotspot, copy it to ~/Downloads
+  on the VM (pen drive), then SKIP the wget line and run the tar line.
+- Check a downloaded file is complete before tar:
+      tar -tzf ~/Downloads/FILENAME > /dev/null && echo FILE OK
+
 
 STEP 1. Install Java, SSH and tools
 -----------------------------------
@@ -40,8 +48,8 @@ export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
 EOF
 source ~/.bashrc
 
-cd ~/Downloads 2>/dev/null || mkdir -p ~/Downloads && cd ~/Downloads
-wget https://archive.apache.org/dist/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz
+mkdir -p ~/Downloads && cd ~/Downloads
+wget -c https://dlcdn.apache.org/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz || wget -c https://archive.apache.org/dist/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz
 tar -xzf hadoop-3.3.6.tar.gz
 sudo mv hadoop-3.3.6 /usr/local/hadoop
 sudo chown -R "$USER":"$USER" /usr/local/hadoop
@@ -131,8 +139,8 @@ jps must show: NameNode, DataNode, SecondaryNameNode, ResourceManager, NodeManag
 
 STEP 6. Download and install Spark
 ----------------------------------
-cd ~/Downloads 2>/dev/null || mkdir -p ~/Downloads && cd ~/Downloads
-wget https://archive.apache.org/dist/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz
+mkdir -p ~/Downloads && cd ~/Downloads
+wget -c https://dlcdn.apache.org/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz || wget -c https://archive.apache.org/dist/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz
 tar -xzf spark-3.5.3-bin-hadoop3.tgz
 sudo mv spark-3.5.3-bin-hadoop3 /usr/local/spark
 sudo chown -R "$USER":"$USER" /usr/local/spark
@@ -222,6 +230,8 @@ stop-yarn.sh && stop-dfs.sh
 
 QUICK FIXES
 -----------
+Download stopped / tar says "unexpected end of file" or "not in gzip format"
+    rm ~/Downloads/<that file>   then run the wget -c line again
 spark-shell: command not found
     source ~/.bashrc
 Input path does not exist: file:/.../input.txt
