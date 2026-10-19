@@ -10,8 +10,8 @@ sleep 2
 
 echo "=== 2. Delete Hadoop, Spark and lab folders ==="
 sudo rm -rf /usr/local/hadoop /usr/local/spark
-rm -rf ~/input ~/wordcount ~/sparklab
-rm -f ~/Downloads/hadoop-3.3.6.tar.gz ~/Downloads/spark-3.5.3-bin-hadoop3.tgz
+rm -rf ~/input ~/wordcount ~/sparklab ~/sparkenv
+rm -f ~/Downloads/hadoop-3.3.*.tar.gz ~/Downloads/spark-3.5.*-bin-hadoop3.tgz   # any version downloaded
 rm -rf /tmp/hadoop-"$USER" /tmp/hsperfdata_"$USER"
 
 echo "=== 3. Remove lines added to ~/.bashrc (backup saved) ==="

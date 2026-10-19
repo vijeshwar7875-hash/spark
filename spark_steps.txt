@@ -12,7 +12,9 @@ RULES
 
 DOWNLOAD TIPS (the download is the slowest part)
 - "wget -c" RESUMES a broken download. If the connection drops, run the same wget again.
-- The first link is a fast CDN; if it gives 404, the command automatically tries the archive link.
+- The fast CDN (dlcdn.apache.org) keeps only NEWEST releases, so an exact old version gives 404.
+  The commands below first ask the CDN which version of the same line (3.3.x / 3.5.x) it has now,
+  download that, and only use the slow archive link if the CDN has none.
 - Fastest in a slow lab: download the file at home / hotspot, copy it to ~/Downloads
   on the VM (pen drive), then SKIP the wget line and run the tar line.
 - Check a downloaded file is complete before tar:
@@ -49,9 +51,12 @@ EOF
 source ~/.bashrc
 
 mkdir -p ~/Downloads && cd ~/Downloads
-wget -c https://dlcdn.apache.org/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz || wget -c https://archive.apache.org/dist/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz
-tar -xzf hadoop-3.3.6.tar.gz
-sudo mv hadoop-3.3.6 /usr/local/hadoop
+V=$(curl -s https://dlcdn.apache.org/hadoop/common/ | grep -oE 'hadoop-3\.3\.[0-9]+/' | tr -d / | sort -V | tail -1)
+V=${V:-hadoop-3.3.6}
+echo "Using $V"
+wget -c https://dlcdn.apache.org/hadoop/common/$V/$V.tar.gz || { V=hadoop-3.3.6; wget -c https://archive.apache.org/dist/hadoop/common/$V/$V.tar.gz; }
+tar -xzf $V.tar.gz
+sudo mv $V /usr/local/hadoop
 sudo chown -R "$USER":"$USER" /usr/local/hadoop
 hadoop version
 
@@ -140,10 +145,31 @@ jps must show: NameNode, DataNode, SecondaryNameNode, ResourceManager, NodeManag
 STEP 6. Download and install Spark
 ----------------------------------
 mkdir -p ~/Downloads && cd ~/Downloads
-wget -c https://dlcdn.apache.org/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz || wget -c https://archive.apache.org/dist/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz
-tar -xzf spark-3.5.3-bin-hadoop3.tgz
-sudo mv spark-3.5.3-bin-hadoop3 /usr/local/spark
+V=$(curl -s https://dlcdn.apache.org/spark/ | grep -oE 'spark-3\.5\.[0-9]+/' | tr -d / | sort -V | tail -1)
+V=${V:-spark-3.5.3}
+echo "Using $V"
+wget -c https://dlcdn.apache.org/spark/$V/$V-bin-hadoop3.tgz || { V=spark-3.5.3; wget -c https://archive.apache.org/dist/spark/$V/$V-bin-hadoop3.tgz; }
+tar -xzf $V-bin-hadoop3.tgz
+sudo mv $V-bin-hadoop3 /usr/local/spark
 sudo chown -R "$USER":"$USER" /usr/local/spark
+
+
+STEP 6-FAST. FAST SPARK INSTALL (use this INSTEAD of STEP 6 and STEP 7)
+-----------------------------------------------------------------------
+Use this if the Spark download from Apache is too slow (4+ hours).
+It installs the same Spark 3.5.3 from PyPI (fast CDN, about 300 MB, a few minutes).
+
+sudo apt install -y python3-venv python3-pip
+python3 -m venv ~/sparkenv
+~/sparkenv/bin/pip install --retries 10 --default-timeout 60 pyspark==3.5.3
+export SPARK_HOME=$(~/sparkenv/bin/python -c "import pyspark,os;print(os.path.dirname(pyspark.__file__))")
+export PATH=$PATH:$SPARK_HOME/bin
+echo "export SPARK_HOME=$SPARK_HOME" >> ~/.bashrc
+echo 'export PATH=$PATH:$SPARK_HOME/bin' >> ~/.bashrc
+spark-shell --version
+
+Then continue with STEP 8 (spark-shell works exactly the same).
+Other option: pen-drive copy of the tgz into ~/Downloads, then run STEP 6 without the wget line.
 
 
 STEP 7. Spark environment variables (run once only)

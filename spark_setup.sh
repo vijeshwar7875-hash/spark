@@ -5,13 +5,30 @@ export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-$ARCH
 export HADOOP_HOME=/usr/local/hadoop
 export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
 add_env() { grep -qxF "$1" ~/.bashrc || echo "$1" >> ~/.bashrc; }
-# fetch <file> <url1> [url2...]: reuse a valid file in ~/Downloads, else resume-download (tries each URL)
-fetch() {
-  f=$1; shift
-  if [ -f "$f" ] && tar -tzf "$f" >/dev/null 2>&1; then echo "Using existing $f"; return 0; fi
-  for u in "$@"; do wget -c "$u" && return 0; done
-  echo "Download failed. Put $f in ~/Downloads manually and rerun."; exit 1
+# latest_dir <index_url> <regex>: newest matching folder listed on the mirror (empty if none)
+latest_dir() { curl -fsSL -m 20 "$1" 2>/dev/null | grep -oE "$2[0-9]+(\.[0-9]+)*/" | tr -d / | sort -V | tail -1; }
+# valid <file>: complete, readable archive?
+valid() { [ -f "$1" ] && tar -tzf "$1" >/dev/null 2>&1; }
+# get_pkg <dir> <suffix> <cdn_base> <archive_base> <regex>   (run inside ~/Downloads)
+# Order: valid local file -> CDN pinned -> CDN newest of same release line (avoids 404) -> archive pinned
+# Result: PKG_FILE = file name that was downloaded/found
+get_pkg() {
+  d=$1; sfx=$2; cdn=$3; arc=$4; rx=$5
+  PKG_FILE=$d$sfx
+  if valid "$PKG_FILE"; then echo "Using existing $PKG_FILE"; return 0; fi
+  wget -c "$cdn$d/$PKG_FILE" && return 0
+  n=$(latest_dir "$cdn" "$rx")
+  if [ -n "$n" ] && [ "$n" != "$d" ]; then
+    echo "Pinned version not on CDN; using newest on CDN: $n"
+    PKG_FILE=$n$sfx
+    if valid "$PKG_FILE"; then return 0; fi
+    wget -c "$cdn$n/$PKG_FILE" && return 0
+  fi
+  PKG_FILE=$d$sfx
+  wget -c "$arc$d/$PKG_FILE" && return 0
+  echo "Download failed. Put $PKG_FILE in ~/Downloads manually and rerun."; exit 1
 }
+# END_PKG
 
 echo "=== 1. Install Java, SSH, tools ==="
 sudo apt update
@@ -34,9 +51,9 @@ add_env 'export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin'
 echo "=== 4. Download and install Hadoop 3.3.6 ==="
 if [ ! -d "$HADOOP_HOME" ]; then
   mkdir -p ~/Downloads && cd ~/Downloads
-  fetch hadoop-3.3.6.tar.gz https://dlcdn.apache.org/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz https://archive.apache.org/dist/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz
-  tar -xzf hadoop-3.3.6.tar.gz
-  sudo mv hadoop-3.3.6 "$HADOOP_HOME"
+  get_pkg hadoop-3.3.6 .tar.gz https://dlcdn.apache.org/hadoop/common/ https://archive.apache.org/dist/hadoop/common/ 'hadoop-3\.3\.'
+  tar -xzf "$PKG_FILE"
+  sudo mv "$(tar -tzf "$PKG_FILE" 2>/dev/null | head -1 | cut -d/ -f1)" "$HADOOP_HOME"
   sudo chown -R "$USER":"$USER" "$HADOOP_HOME"
 fi
 hadoop version
@@ -118,17 +135,13 @@ hdfs dfsadmin -safemode wait
 jps
 echo "HDFS UI: http://localhost:9870 | YARN UI: http://localhost:8088"
 
-echo "=== 7. Download and install Spark 3.5.3 ==="
-export SPARK_HOME=/usr/local/spark
+echo "=== 7. Install Spark 3.5.3 via pip (fast, from PyPI instead of archive.apache.org) ==="
+sudo apt install -y python3-venv python3-pip
+[ -d ~/sparkenv ] || python3 -m venv ~/sparkenv
+~/sparkenv/bin/pip install --retries 10 --default-timeout 60 pyspark==3.5.3
+export SPARK_HOME=$(~/sparkenv/bin/python -c "import pyspark,os;print(os.path.dirname(pyspark.__file__))")
 export PATH=$PATH:$SPARK_HOME/bin
-if [ ! -d "$SPARK_HOME" ]; then
-  mkdir -p ~/Downloads && cd ~/Downloads
-  fetch spark-3.5.3-bin-hadoop3.tgz https://dlcdn.apache.org/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz https://archive.apache.org/dist/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz
-  tar -xzf spark-3.5.3-bin-hadoop3.tgz
-  sudo mv spark-3.5.3-bin-hadoop3 "$SPARK_HOME"
-  sudo chown -R "$USER":"$USER" "$SPARK_HOME"
-fi
-add_env 'export SPARK_HOME=/usr/local/spark'
+add_env "export SPARK_HOME=$SPARK_HOME"
 add_env 'export PATH=$PATH:$SPARK_HOME/bin'
 spark-shell --version
 
