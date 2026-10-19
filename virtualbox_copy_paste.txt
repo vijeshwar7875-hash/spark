@@ -1,0 +1,83 @@
+ENABLE COPY-PASTE BETWEEN WINDOWS AND VIRTUALBOX VM (Xubuntu / Ubuntu)
+======================================================================
+
+STEP 1. Turn on Shared Clipboard (in VirtualBox on Windows)
+------------------------------------------------------------
+1. Select your VM in VirtualBox Manager.
+2. Click Settings.
+3. Go to General > Advanced.
+4. Shared Clipboard: choose "Bidirectional".
+5. (Optional) Drag'n'Drop: choose "Bidirectional".
+6. Click OK.
+
+Bidirectional = copy from Windows to VM AND from VM to Windows.
+
+
+STEP 2. Install Guest Additions (inside the VM)
+-----------------------------------------------
+Copy-paste will NOT work without this step.
+
+Method A (easiest, run in the VM terminal):
+
+sudo apt update
+sudo apt install -y virtualbox-guest-utils virtualbox-guest-x11
+sudo reboot
+
+Method B (if Method A fails):
+1. In the VM window menu: Devices > Insert Guest Additions CD Image.
+2. Open the CD in the VM, then run in terminal:
+
+cd /media/$USER/VBox_GAs_*
+sudo sh ./VBoxLinuxAdditions.run
+sudo reboot
+
+
+STEP 3. Test
+------------
+1. Copy some text in Windows (Ctrl + C).
+2. Click inside the VM and paste (see paste keys below).
+3. Copy text inside the VM and paste in Windows (Ctrl + V).
+
+
+PASTE KEYS INSIDE THE VM
+------------------------
+Terminal:     Ctrl + Shift + V   (plain Ctrl + V does NOT work in terminal)
+Other apps:   Ctrl + V
+Terminal copy: Ctrl + Shift + C
+
+
+IF IT STILL DOES NOT WORK
+-------------------------
+Problem: Paste does nothing
+  Fix: Check Settings > General > Advanced > Shared Clipboard = Bidirectional.
+
+Problem: Guest Additions not running
+  Fix (run in VM terminal):
+    VBoxClient --clipboard &
+  Or check the service:
+    systemctl status virtualbox-guest-utils
+
+Problem: Worked before, stopped after restart
+  Fix:
+    sudo reboot
+  If still stuck, run: VBoxClient --clipboard &
+
+Problem: Only one direction works
+  Fix: Set Shared Clipboard to Bidirectional (not "Host to Guest" or "Guest to Host").
+
+Problem: Package not found in apt
+  Fix: sudo apt update, then try again. Or use Method B.
+
+Problem: Black screen or odd display after install
+  Fix: sudo reboot
+
+
+QUICK ALTERNATIVE (no Guest Additions)
+--------------------------------------
+Use a Shared Folder: Settings > Shared Folders > add a Windows folder,
+tick Auto-mount. Inside VM, add yourself to the group once:
+
+sudo usermod -aG vboxsf $USER
+sudo reboot
+
+Files appear under /media/sf_<foldername>.
