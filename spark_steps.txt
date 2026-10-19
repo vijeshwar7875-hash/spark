@@ -1,0 +1,253 @@
+APACHE SPARK 3.5.3: FULL SETUP FROM SCRATCH (INCLUDES HADOOP) (Ubuntu VM / WSL)
+================================================================================
+Aim: Install Spark and run a word count using RDDs (local file + HDFS).
+
+RULES
+- Run as a normal user (not root). sudo is already included where needed.
+- Spark 3.5.3 with JDK 11. Do NOT use Spark 4.x (needs Java 17).
+- Run "hdfs namenode -format" only ONCE.
+- ARM VM? Replace amd64 with arm64 in every JAVA_HOME line.
+- Needs internet and at least 4 GB RAM.
+- If Hadoop is already installed and running (jps shows 5 daemons), skip to STEP 6.
+
+
+STEP 1. Install Java, SSH and tools
+-----------------------------------
+sudo apt update
+sudo apt install -y curl wget git unzip build-essential nano openjdk-11-jdk openssh-server
+java -version
+
+
+STEP 2. Passwordless SSH
+------------------------
+sudo service ssh start
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519
+cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+ssh -o StrictHostKeyChecking=no localhost
+exit
+
+(If ssh-keygen says the file exists, type n and continue.)
+
+
+STEP 3. Install Hadoop (env variables + download)
+-------------------------------------------------
+cat >> ~/.bashrc <<'EOF'
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+export HADOOP_HOME=/usr/local/hadoop
+export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
+EOF
+source ~/.bashrc
+
+cd ~/Downloads 2>/dev/null || mkdir -p ~/Downloads && cd ~/Downloads
+wget https://archive.apache.org/dist/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz
+tar -xzf hadoop-3.3.6.tar.gz
+sudo mv hadoop-3.3.6 /usr/local/hadoop
+sudo chown -R "$USER":"$USER" /usr/local/hadoop
+hadoop version
+
+
+STEP 4. Configure Hadoop
+------------------------
+echo 'export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64' >> $HADOOP_HOME/etc/hadoop/hadoop-env.sh
+
+cat > $HADOOP_HOME/etc/hadoop/core-site.xml <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <property>
+    <name>fs.defaultFS</name>
+    <value>hdfs://localhost:9000</value>
+  </property>
+</configuration>
+EOF
+
+cat > $HADOOP_HOME/etc/hadoop/hdfs-site.xml <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <property>
+    <name>dfs.replication</name>
+    <value>1</value>
+  </property>
+  <property>
+    <name>dfs.namenode.name.dir</name>
+    <value>file:/usr/local/hadoop/hadoop_data/hdfs/namenode</value>
+  </property>
+  <property>
+    <name>dfs.datanode.data.dir</name>
+    <value>file:/usr/local/hadoop/hadoop_data/hdfs/datanode</value>
+  </property>
+</configuration>
+EOF
+
+cat > $HADOOP_HOME/etc/hadoop/mapred-site.xml <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <property>
+    <name>mapreduce.framework.name</name>
+    <value>yarn</value>
+  </property>
+  <property>
+    <name>mapreduce.application.classpath</name>
+    <value>$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/*:$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/lib/*</value>
+  </property>
+  <property>
+    <name>yarn.app.mapreduce.am.env</name>
+    <value>HADOOP_MAPRED_HOME=/usr/local/hadoop</value>
+  </property>
+  <property>
+    <name>mapreduce.map.env</name>
+    <value>HADOOP_MAPRED_HOME=/usr/local/hadoop</value>
+  </property>
+  <property>
+    <name>mapreduce.reduce.env</name>
+    <value>HADOOP_MAPRED_HOME=/usr/local/hadoop</value>
+  </property>
+</configuration>
+EOF
+
+cat > $HADOOP_HOME/etc/hadoop/yarn-site.xml <<'EOF'
+<?xml version="1.0"?>
+<configuration>
+  <property>
+    <name>yarn.nodemanager.aux-services</name>
+    <value>mapreduce_shuffle</value>
+  </property>
+</configuration>
+EOF
+
+
+STEP 5. Format (ONCE ONLY) and start Hadoop
+-------------------------------------------
+mkdir -p /usr/local/hadoop/hadoop_data/hdfs/namenode
+mkdir -p /usr/local/hadoop/hadoop_data/hdfs/datanode
+hdfs namenode -format
+start-dfs.sh
+start-yarn.sh
+jps
+
+jps must show: NameNode, DataNode, SecondaryNameNode, ResourceManager, NodeManager
+
+
+STEP 6. Download and install Spark
+----------------------------------
+cd ~/Downloads 2>/dev/null || mkdir -p ~/Downloads && cd ~/Downloads
+wget https://archive.apache.org/dist/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz
+tar -xzf spark-3.5.3-bin-hadoop3.tgz
+sudo mv spark-3.5.3-bin-hadoop3 /usr/local/spark
+sudo chown -R "$USER":"$USER" /usr/local/spark
+
+
+STEP 7. Spark environment variables (run once only)
+---------------------------------------------------
+cat >> ~/.bashrc <<'EOF'
+export SPARK_HOME=/usr/local/spark
+export PATH=$PATH:$SPARK_HOME/bin
+EOF
+source ~/.bashrc
+spark-shell --version
+
+
+STEP 8. Create input file
+-------------------------
+mkdir -p ~/sparklab && cd ~/sparklab
+printf 'cloud computing cloud lab\nspark processes data\n' > input.txt
+cat input.txt
+
+
+STEP 9. Word count: local file
+------------------------------
+cd ~/sparklab
+spark-shell
+
+At the scala> prompt (NOT bash), paste:
+
+val inputFile = sc.textFile("input.txt")
+val counts = inputFile.flatMap(line => line.split("\\s+")).filter(_.nonEmpty).map(word => (word, 1)).reduceByKey(_ + _)
+counts.collect().foreach(println)
+counts.saveAsTextFile("output")
+:quit
+
+Expected (order may differ):
+(cloud,2)
+(computing,1)
+(lab,1)
+(spark,1)
+(processes,1)
+(data,1)
+
+View output (back in bash):
+cd ~/sparklab
+ls output
+cat output/part-*
+
+Rerun (Spark will not overwrite):
+rm -r ~/sparklab/output
+
+Spark UI while shell is open: http://localhost:4040
+
+
+STEP 10. Word count: HDFS (Hadoop must be running)
+--------------------------------------------------
+cd ~/sparklab
+hdfs dfs -mkdir -p /input
+hdfs dfs -put -f input.txt /input/input.txt
+hdfs dfs -ls /input
+spark-shell
+
+At the scala> prompt:
+
+val hdfsInput = sc.textFile("hdfs://localhost:9000/input/input.txt")
+val hdfsCounts = hdfsInput.flatMap(line => line.split("\\s+")).filter(_.nonEmpty).map(word => (word, 1)).reduceByKey(_ + _)
+hdfsCounts.collect().foreach(println)
+hdfsCounts.saveAsTextFile("hdfs://localhost:9000/output/spark-wordcount")
+:quit
+
+View in bash:
+hdfs dfs -ls /output/spark-wordcount
+hdfs dfs -cat /output/spark-wordcount/part-*
+
+Rerun:
+hdfs dfs -rm -r /output/spark-wordcount
+
+
+STEP 11. Start / stop
+---------------------
+Start Hadoop later (NO format):
+sudo service ssh start && start-dfs.sh && start-yarn.sh && jps
+
+Stop Hadoop:
+stop-yarn.sh && stop-dfs.sh
+
+
+QUICK FIXES
+-----------
+spark-shell: command not found
+    source ~/.bashrc
+Input path does not exist: file:/.../input.txt
+    cd ~/sparklab before spark-shell, or use the full path
+FileAlreadyExistsException: output
+    rm -r ~/sparklab/output   (HDFS: hdfs dfs -rm -r /output/spark-wordcount)
+Connection refused: localhost:9000
+    Hadoop is down: start-dfs.sh, then jps
+Only some words in output
+    Use: cat output/part-*
+UnsupportedClassVersionError
+    Use Spark 3.5.x with JDK 11
+Port 4040 in use
+    Harmless, Spark uses 4041
+DataNode missing / clusterID error (FULL RESET, deletes HDFS data)
+    stop-yarn.sh; stop-dfs.sh
+    rm -rf /usr/local/hadoop/hadoop_data/hdfs/namenode/* /usr/local/hadoop/hadoop_data/hdfs/datanode/*
+    hdfs namenode -format
+    start-dfs.sh; start-yarn.sh
+Too many INFO logs
+    cp $SPARK_HOME/conf/log4j2.properties.template $SPARK_HOME/conf/log4j2.properties
+    sed -i 's/rootLogger.level = info/rootLogger.level = warn/' $SPARK_HOME/conf/log4j2.properties
+Slow / low memory
+    spark-shell --master local[2] --driver-memory 1g
+
+
+RESULT LINE FOR RECORD
+----------------------
+Thus, the experiment was successfully completed and the output was verified.
