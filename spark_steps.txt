@@ -1,10 +1,10 @@
-APACHE SPARK 3.5.3: FULL SETUP FROM SCRATCH (INCLUDES HADOOP) (Ubuntu VM / WSL)
+APACHE SPARK 3.5.9: FULL SETUP FROM SCRATCH (INCLUDES HADOOP) (Ubuntu VM / WSL)
 ================================================================================
 Aim: Install Spark and run a word count using RDDs (local file + HDFS).
 
 RULES
 - Run as a normal user (not root). sudo is already included where needed.
-- Spark 3.5.3 with JDK 11. Do NOT use Spark 4.x (needs Java 17).
+- Spark 3.5.9 with JDK 11. Do NOT use Spark 4.x (needs Java 17).
 - Run "hdfs namenode -format" only ONCE.
 - ARM VM? Replace amd64 with arm64 in every JAVA_HOME line.
 - Needs internet and at least 4 GB RAM.
@@ -146,9 +146,9 @@ STEP 6. Download and install Spark
 ----------------------------------
 mkdir -p ~/Downloads && cd ~/Downloads
 V=$(curl -s https://dlcdn.apache.org/spark/ | grep -oE 'spark-3\.5\.[0-9]+/' | tr -d / | sort -V | tail -1)
-V=${V:-spark-3.5.3}
+V=${V:-spark-3.5.9}
 echo "Using $V"
-wget -c https://dlcdn.apache.org/spark/$V/$V-bin-hadoop3.tgz || { V=spark-3.5.3; wget -c https://archive.apache.org/dist/spark/$V/$V-bin-hadoop3.tgz; }
+wget -c https://dlcdn.apache.org/spark/$V/$V-bin-hadoop3.tgz || { V=spark-3.5.9; wget -c https://archive.apache.org/dist/spark/$V/$V-bin-hadoop3.tgz; }
 tar -xzf $V-bin-hadoop3.tgz
 sudo mv $V-bin-hadoop3 /usr/local/spark
 sudo chown -R "$USER":"$USER" /usr/local/spark
@@ -157,11 +157,11 @@ sudo chown -R "$USER":"$USER" /usr/local/spark
 STEP 6-FAST. FAST SPARK INSTALL (use this INSTEAD of STEP 6 and STEP 7)
 -----------------------------------------------------------------------
 Use this if the Spark download from Apache is too slow (4+ hours).
-It installs the same Spark 3.5.3 from PyPI (fast CDN, about 300 MB, a few minutes).
+It installs the same Spark 3.5.9 from PyPI (fast CDN, about 300 MB, a few minutes).
 
 sudo apt install -y python3-venv python3-pip
 python3 -m venv ~/sparkenv
-~/sparkenv/bin/pip install --retries 10 --default-timeout 60 pyspark==3.5.3
+~/sparkenv/bin/pip install --retries 10 --default-timeout 60 pyspark==3.5.9
 export SPARK_HOME=$(~/sparkenv/bin/python -c "import pyspark,os;print(os.path.dirname(pyspark.__file__))")
 export PATH=$PATH:$SPARK_HOME/bin
 echo "export SPARK_HOME=$SPARK_HOME" >> ~/.bashrc
